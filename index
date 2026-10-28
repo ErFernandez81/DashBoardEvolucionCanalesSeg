@@ -1,0 +1,601 @@
+<div class="max-w-7xl mx-auto space-y-6">
+    
+    <!-- ENCABEZADO Y CONTROLES DE ACTUALIZACIÓN -->
+    <header class="card-bg rounded-2xl p-6 shadow-2xl flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-3">
+                <i class="fa-solid fa-chart-line text-green-400"></i> Dashboard de EVOLUCION DE CANALES
+            </h1>
+            <p class="text-gray-400 text-sm mt-1">Monitoreo en tiempo real de operaciones, Monto BS y Monto USD.</p>
+        </div>
+        
+        <div class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center gap-2 bg-[#1e3e62] px-3 py-2 rounded-xl">
+                <label for="refreshInterval" class="text-xs text-gray-300">Auto-refresco:</label>
+                <select id="refreshInterval" class="bg-transparent text-white text-sm focus:outline-none">
+                    <option value="0" class="bg-[#0b192c]">Desactivado</option>
+                    <option value="30" class="bg-[#0b192c]">Cada 30s</option>
+                    <option value="60" class="bg-[#0b192c]" selected>Cada 1 min</option>
+                    <option value="300" class="bg-[#0b192c]">Cada 5 min</option>
+                </select>
+            </div>
+            
+            <button id="btnManualRefresh" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition shadow-lg">
+                <i class="fa-solid fa-sync"></i> Actualizar Ahora
+            </button>
+        </div>
+    </header>
+
+    <!-- FILTROS Y CONTROLES DINÁMICOS -->
+    <section class="card-bg rounded-2xl p-6 shadow-2xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <!-- Canal -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-network-wired mr-1"></i> Canal</label>
+            <select id="filterCanal" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+                <option value="ALL">Todos los Canales</option>
+            </select>
+        </div>
+
+        <!-- Sucursal -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-building mr-1"></i> Sucursal</label>
+            <select id="filterSucursal" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+                <option value="ALL">Todas las Sucursales</option>
+            </select>
+        </div>
+
+        <!-- Mes Inicial -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-calendar mr-1"></i> Mes Desde (MM-AAAA)</label>
+            <select id="filterMesDesde" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+            </select>
+        </div>
+
+        <!-- Mes Final -->
+        <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-calendar-days mr-1"></i> Mes Hasta (MM-AAAA)</label>
+            <select id="filterMesHasta" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+            </select>
+        </div>
+
+        <!-- Botones Métricas / Selector de Métrica Activa -->
+        <div class="flex flex-col justify-end">
+            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-sliders mr-1"></i> Métrica Activa</label>
+            <div class="flex rounded-xl overflow-hidden border border-gray-600">
+                <button data-metric="CantidadOperaciones" class="metric-btn flex-1 bg-green-600 hover:bg-green-500 text-xs py-2 px-1 font-bold transition">Ops</button>
+                <button data-metric="MontoBS" class="metric-btn flex-1 bg-[#1e3e62] hover:bg-blue-600 text-xs py-2 px-1 font-bold transition">BS</button>
+                <button data-metric="MontoUSD" class="metric-btn flex-1 bg-[#1e3e62] hover:bg-blue-600 text-xs py-2 px-1 font-bold transition">USD</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- TARJETAS DE RESUMEN (KPIs) -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-green-500">
+            <div>
+                <p class="text-xs text-gray-400 font-semibold uppercase">Total Operaciones</p>
+                <h3 id="kpiOps" class="text-2xl font-black mt-1">0</h3>
+            </div>
+            <div class="bg-green-500/20 p-3 rounded-xl text-green-400"><i class="fa-solid fa-hashtag text-xl"></i></div>
+        </div>
+
+        <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-blue-500">
+            <div>
+                <p class="text-xs text-gray-400 font-semibold uppercase">Total Monto (BS)</p>
+                <h3 id="kpiBS" class="text-2xl font-black mt-1">0.00</h3>
+            </div>
+            <div class="bg-blue-500/20 p-3 rounded-xl text-blue-400"><i class="fa-solid fa-wallet text-xl"></i></div>
+        </div>
+
+        <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-emerald-400">
+            <div>
+                <p class="text-xs text-gray-400 font-semibold uppercase">Total Monto (USD)</p>
+                <h3 id="kpiUSD" class="text-2xl font-black mt-1">0.00</h3>
+            </div>
+            <div class="bg-emerald-500/20 p-3 rounded-xl text-emerald-400"><i class="fa-solid fa-dollar-sign text-xl"></i></div>
+        </div>
+    </section>
+
+    <!-- SECCIÓN DE GRÁFICOS -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Gráfico de Líneas Múltiple: Evolución Temporal por Canal -->
+        <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-green-400"></i> Tendencia Mensual por Canal
+                </h2>
+                <span id="lblMetricLine" class="text-xs bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full font-semibold">Operaciones</span>
+            </div>
+            <div class="relative h-72 w-full">
+                <canvas id="lineChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico de Barras Agrupadas: Comparativa por Canal (Ops vs Monto) -->
+        <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-chart-column text-blue-400"></i> Comparativa Cantidad vs Monto (BS)
+                </h2>
+                <span class="text-xs bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-semibold">Agrupado</span>
+            </div>
+            <div class="relative h-72 w-full">
+                <canvas id="barChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- GRÁFICO DE PARTICIPACIÓN Y RESUMEN TABULAR -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Gráfico de Participación (Doughnut) -->
+        <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between lg:col-span-1">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-emerald-400"></i> Participación por Canal
+                </h2>
+            </div>
+            <div class="relative h-64 w-full flex items-center justify-center">
+                <canvas id="doughnutChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabla de Resumen Agregado Mes a Mes por Canal y Sucursal -->
+        <div class="card-bg p-6 rounded-2xl shadow-2xl lg:col-span-2 flex flex-col">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-table text-green-400"></i> Resumen Agregado Mes a Mes por Canal y Sucursal
+                </h2>
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <div class="relative w-full sm:w-64">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                            <i class="fa-solid fa-search text-xs"></i>
+                        </span>
+                        <input type="text" id="searchTable" placeholder="Filtrar por canal o sucursal..." class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-400">
+                    </div>
+                    <span id="rowCount" class="text-xs text-gray-400 whitespace-nowrap">0 reg.</span>
+                </div>
+            </div>
+            <div class="overflow-x-auto max-h-72 overflow-y-auto rounded-xl border border-gray-700">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead class="bg-[#1e3e62] sticky top-0 text-xs uppercase text-gray-300">
+                        <tr>
+                            <th class="p-3">Mes</th>
+                            <th class="p-3">Canal</th>
+                            <th class="p-3">Sucursal</th>
+                            <th class="p-3 text-right">Ops</th>
+                            <th class="p-3 text-right">Monto BS</th>
+                            <th class="p-3 text-right">Monto USD</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTableBody" class="divide-y divide-gray-800 text-gray-200 text-xs">
+                        <!-- Inyectado dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <footer class="text-center text-xs text-gray-300 py-4">
+        Dashboard de Evolución de Canales &bull; Conexión Segura vía API Apps Script
+    </footer>
+
+</div>
+
+<!-- SCRIPT DE LÓGICA Y PROCESAMIENTO -->
+<script>
+    // Reemplaza esta URL con la URL de tu Aplicación Web de Google Apps Script (/exec)
+    const API_URL = "https://script.google.com/macros/s/TU_ID_DE_APPS_SCRIPT_AQUI/exec";
+
+    let rawData = [];
+    let filteredData = [];
+    let activeMetric = "CantidadOperaciones"; // CantidadOperaciones, MontoBS, MontoUSD
+    let refreshTimer = null;
+
+    // Instancias de gráficos
+    let lineChartInstance = null;
+    let barChartInstance = null;
+    let doughnutChartInstance = null;
+
+    // Cargar datos al iniciar
+    window.addEventListener("DOMContentLoaded", () => {
+        fetchData();
+        setupEventListeners();
+    });
+
+    function setupEventListeners() {
+        document.getElementById("filterCanal").addEventListener("change", applyFilters);
+        document.getElementById("filterSucursal").addEventListener("change", applyFilters);
+        document.getElementById("filterMesDesde").addEventListener("change", applyFilters);
+        document.getElementById("filterMesHasta").addEventListener("change", applyFilters);
+        document.getElementById("searchTable").addEventListener("input", updateSummaryTable);
+        document.getElementById("btnManualRefresh").addEventListener("click", () => {
+            fetchData(true);
+        });
+
+        document.getElementById("refreshInterval").addEventListener("change", (e) => {
+            const seconds = parseInt(e.target.value);
+            if (refreshTimer) clearInterval(refreshTimer);
+            if (seconds > 0) {
+                refreshTimer = setInterval(() => fetchData(false), seconds * 1000);
+            }
+        });
+
+        // Botones de Métrica
+        document.querySelectorAll(".metric-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                document.querySelectorAll(".metric-btn").forEach(b => {
+                    b.classList.remove("bg-green-600");
+                    b.classList.add("bg-[#1e3e62]");
+                });
+                e.target.classList.remove("bg-[#1e3e62]");
+                e.target.classList.add("bg-green-600");
+                activeMetric = e.target.getAttribute("data-metric");
+                
+                // Actualizar etiquetas visuales
+                const labelMap = { "CantidadOperaciones": "Operaciones", "MontoBS": "Monto BS", "MontoUSD": "Monto USD" };
+                document.getElementById("lblMetricLine").innerText = labelMap[activeMetric];
+
+                updateCharts();
+            });
+        });
+
+        // Inicializar timer por defecto (1 min)
+        refreshTimer = setInterval(() => fetchData(false), 60000);
+    }
+
+    function fetchData(showNotification = false) {
+        fetch(API_URL)
+            .then(response => response.json())
+            .then(data => {
+                rawData = data.map(row => {
+                    return {
+                        Fecha: (row.Fecha || "").trim(),
+                        Canal: (row.Canal || "Desconocido").trim(),
+                        Sucursal: (row.Sucursal || "Desconocida").trim(),
+                        CantidadOperaciones: parseFloat(row.CantidadOperaciones) || 0,
+                        MontoBS: parseFloat(row.MontoBS) || 0,
+                        MontoUSD: parseFloat(row.MontoUSD) || 0,
+                        MesKey: extractMonthKey(row.Fecha || "")
+                    };
+                }).filter(item => item.MesKey !== "");
+
+                initializeFilterOptions();
+                applyFilters();
+                if (showNotification) {
+                    alertCustom("Datos actualizados correctamente desde la API segura.");
+                }
+            })
+            .catch(err => {
+                console.error("Error al cargar los datos desde la API:", err);
+            });
+    }
+
+    function extractMonthKey(dateStr) {
+        if (!dateStr) return "";
+        let parts = dateStr.split(/[\/\-]/);
+        if (parts.length >= 3) {
+            if (parts[0].length === 4) {
+                return `${parts[1]}-${parts[0]}`;
+            } else {
+                return `${parts[1]}-${parts[2]}`;
+            }
+        }
+        return dateStr.substring(0, 7);
+    }
+
+    function initializeFilterOptions() {
+        const canalesSet = new Set();
+        const sucursalesSet = new Set();
+        const mesesSet = new Set();
+
+        rawData.forEach(item => {
+            if (item.Canal) canalesSet.add(item.Canal);
+            if (item.Sucursal) sucursalesSet.add(item.Sucursal);
+            if (item.MesKey) mesesSet.add(item.MesKey);
+        });
+
+        const sortedMeses = Array.from(mesesSet).sort();
+
+        const selCanal = document.getElementById("filterCanal");
+        const currentCanal = selCanal.value;
+        selCanal.innerHTML = '<option value="ALL">Todos los Canales</option>';
+        canalesSet.forEach(c => {
+            selCanal.innerHTML += `<option value="${c}">${c}</option>`;
+        });
+        selCanal.value = canalesSet.has(currentCanal) ? currentCanal : "ALL";
+
+        const selSuc = document.getElementById("filterSucursal");
+        const currentSuc = selSuc.value;
+        selSuc.innerHTML = '<option value="ALL">Todas las Sucursales</option>';
+        sucursalesSet.forEach(s => {
+            selSuc.innerHTML += `<option value="${s}">${s}</option>`;
+        });
+        selSuc.value = sucursalesSet.has(currentSuc) ? currentSuc : "ALL";
+
+        const selDesde = document.getElementById("filterMesDesde");
+        const selHasta = document.getElementById("filterMesHasta");
+        const currentDesde = selDesde.value;
+        const currentHasta = selHasta.value;
+
+        selDesde.innerHTML = '';
+        selHasta.innerHTML = '';
+
+        sortedMeses.forEach(m => {
+            selDesde.innerHTML += `<option value="${m}">${m}</option>`;
+            selHasta.innerHTML += `<option value="${m}">${m}</option>`;
+        });
+
+        if (sortedMeses.length > 0) {
+            selDesde.value = sortedMeses.includes(currentDesde) ? currentDesde : sortedMeses[0];
+            selHasta.value = sortedMeses.includes(currentHasta) ? currentHasta : sortedMeses[sortedMeses.length - 1];
+        }
+    }
+
+    function applyFilters() {
+        const canalVal = document.getElementById("filterCanal").value;
+        const sucursalVal = document.getElementById("filterSucursal").value;
+        const mesDesde = document.getElementById("filterMesDesde").value;
+        const mesHasta = document.getElementById("filterMesHasta").value;
+
+        filteredData = rawData.filter(item => {
+            const matchCanal = (canalVal === "ALL" || item.Canal === canalVal);
+            const matchSucursal = (sucursalVal === "ALL" || item.Sucursal === sucursalVal);
+            const matchMes = (item.MesKey >= mesDesde && item.MesKey <= mesHasta);
+            return matchCanal && matchSucursal && matchMes;
+        });
+
+        updateKPIs();
+        updateCharts();
+        updateSummaryTable();
+    }
+
+    function updateKPIs() {
+        let totalOps = 0;
+        let totalBS = 0;
+        let totalUSD = 0;
+
+        filteredData.forEach(item => {
+            totalOps += item.CantidadOperaciones;
+            totalBS += item.MontoBS;
+            totalUSD += item.MontoUSD;
+        });
+
+        document.getElementById("kpiOps").innerText = totalOps.toLocaleString();
+        document.getElementById("kpiBS").innerText = totalBS.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById("kpiUSD").innerText = totalUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function updateCharts() {
+        updateLineChart();
+        updateBarChart();
+        updateDoughnutChart();
+    }
+
+    function updateLineChart() {
+        const ctx = document.getElementById("lineChart").getContext("2d");
+        
+        const mesesSet = new Set();
+        const canalesSet = new Set();
+        filteredData.forEach(item => {
+            mesesSet.add(item.MesKey);
+            canalesSet.add(item.Canal);
+        });
+
+        const sortedMeses = Array.from(mesesSet).sort();
+        const canales = Array.from(canalesSet);
+        
+        const distinctColors = {
+            "PRODEMMOVIL": "#00E676",
+            "PRODEMNET": "#2979FF",
+            "PRODEMRED": "#FFEA00",
+            "CAI": "#FF3D00",
+            "CAJAS": "#E040FB",
+            "COBROS QR": "#00E5FF",
+            "PAGOS QR": "#FF9100",
+            "QR CARTERA": "#7C4DFF"
+        };
+        const fallbackColors = ["#651FFF", "#00BFA5", "#F50057", "#1DE9B6", "#AA00FF", "#FFD600"];
+        
+        const datasets = canales.map((canal, idx) => {
+            const dataPoints = sortedMeses.map(mes => {
+                const match = filteredData.filter(d => d.MesKey === mes && d.Canal === canal);
+                return match.reduce((sum, curr) => sum + curr[activeMetric], 0);
+            });
+
+            const color = distinctColors[canal] || fallbackColors[idx % fallbackColors.length];
+
+            return {
+                label: canal,
+                data: dataPoints,
+                borderColor: color,
+                backgroundColor: color,
+                borderWidth: 3,
+                tension: 0.3,
+                fill: false
+            };
+        });
+
+        if (lineChartInstance) lineChartInstance.destroy();
+
+        lineChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedMeses,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#ffffff', font: { size: 11 } } }
+                },
+                scales: {
+                    x: { ticks: { color: '#cbd5e1' }, grid: { color: '#1e3e62' } },
+                    y: { ticks: { color: '#cbd5e1' }, grid: { color: '#1e3e62' } }
+                }
+            }
+        });
+    }
+
+    function updateBarChart() {
+        const ctx = document.getElementById("barChart").getContext("2d");
+
+        const canalMap = {};
+        filteredData.forEach(item => {
+            if (!canalMap[item.Canal]) {
+                canalMap[item.Canal] = { ops: 0, bs: 0 };
+            }
+            canalMap[item.Canal].ops += item.CantidadOperaciones;
+            canalMap[item.Canal].bs += item.MontoBS;
+        });
+
+        const canales = Object.keys(canalMap);
+        const opsData = canales.map(c => canalMap[c].ops);
+        const bsData = canales.map(c => canalMap[c].bs);
+
+        if (barChartInstance) barChartInstance.destroy();
+
+        barChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: canales,
+                datasets: [
+                    {
+                        label: 'Cantidad Operaciones',
+                        data: opsData,
+                        backgroundColor: '#00a950',
+                        borderRadius: 6
+                    },
+                    {
+                        label: 'Monto BS (en miles)',
+                        data: bsData.map(val => val / 1000),
+                        backgroundColor: '#007bff',
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#ffffff', font: { size: 11 } } }
+                },
+                scales: {
+                    x: { ticks: { color: '#cbd5e1' }, grid: { display: false } },
+                    y: { ticks: { color: '#cbd5e1' }, grid: { color: '#1e3e62' } }
+                }
+            }
+        });
+    }
+
+    function updateDoughnutChart() {
+        const ctx = document.getElementById("doughnutChart").getContext("2d");
+
+        const canalMap = {};
+        filteredData.forEach(item => {
+            canalMap[item.Canal] = (canalMap[item.Canal] || 0) + item[activeMetric];
+        });
+
+        const labels = Object.keys(canalMap);
+        const data = Object.values(canalMap);
+
+        const distinctColors = {
+            "PRODEMMOVIL": "#00E676",
+            "PRODEMNET": "#2979FF",
+            "PRODEMRED": "#FFEA00",
+            "CAI": "#FF3D00",
+            "CAJAS": "#E040FB",
+            "COBROS QR": "#00E5FF",
+            "PAGOS QR": "#FF9100",
+            "QR CARTERA": "#7C4DFF"
+        };
+        const fallbackColors = ["#651FFF", "#00BFA5", "#F50057", "#1DE9B6", "#AA00FF", "#FFD600"];
+        
+        const backgroundColors = labels.map((label, idx) => 
+            distinctColors[label] || fallbackColors[idx % fallbackColors.length]
+        );
+
+        if (doughnutChartInstance) doughnutChartInstance.destroy();
+
+        doughnutChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: backgroundColors,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#ffffff', font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    function updateSummaryTable() {
+        const tbody = document.getElementById("summaryTableBody");
+        tbody.innerHTML = "";
+
+        const searchQuery = (document.getElementById("searchTable").value || "").toLowerCase().trim();
+
+        const aggregatedMap = {};
+        filteredData.forEach(item => {
+            const key = `${item.MesKey}|${item.Canal}|${item.Sucursal}`;
+            if (!aggregatedMap[key]) {
+                aggregatedMap[key] = {
+                    Mes: item.MesKey,
+                    Canal: item.Canal,
+                    Sucursal: item.Sucursal,
+                    CantidadOperaciones: 0,
+                    MontoBS: 0,
+                    MontoUSD: 0
+                };
+            }
+            aggregatedMap[key].CantidadOperaciones += item.CantidadOperaciones;
+            aggregatedMap[key].MontoBS += item.MontoBS;
+            aggregatedMap[key].MontoUSD += item.MontoUSD;
+        });
+
+        let rows = Object.values(aggregatedMap).sort((a, b) => b.Mes.localeCompare(a.Mes));
+
+        if (searchQuery !== "") {
+            rows = rows.filter(row => 
+                row.Canal.toLowerCase().includes(searchQuery) || 
+                row.Sucursal.toLowerCase().includes(searchQuery)
+            );
+        }
+
+        document.getElementById("rowCount").innerText = `${rows.length} reg.`;
+
+        rows.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.className = "hover:bg-[#1e3e62]/50 transition";
+            tr.innerHTML = `
+                <td class="p-3 font-semibold">${row.Mes}</td>
+                <td class="p-3">${row.Canal}</td>
+                <td class="p-3">${row.Sucursal}</td>
+                <td class="p-3 text-right">${row.CantidadOperaciones.toLocaleString()}</td>
+                <td class="p-3 text-right">${row.MontoBS.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                <td class="p-3 text-right">${row.MontoUSD.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function alertCustom(message) {
+        const notif = document.createElement("div");
+        notif.className = "fixed bottom-5 right-5 bg-green-600 text-white px-4 py-3 rounded-xl shadow-2xl z-50 text-sm flex items-center gap-2 animate-bounce";
+        notif.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${message}`;
+        document.body.appendChild(notif);
+        setTimeout(() => notif.remove(), 3500);
+    }
+</script>
