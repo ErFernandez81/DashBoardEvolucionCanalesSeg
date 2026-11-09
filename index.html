@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <base target="_top">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de EVOLUCION DE CANALES</title>
@@ -10,8 +11,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para los gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PapaParse para procesar el CSV -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
     <style>
         body {
             background: linear-gradient(135deg, #00a950 0%, #007bff 100%);
@@ -33,7 +33,7 @@
                 <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-3">
                     <i class="fa-solid fa-chart-line text-green-400"></i> Dashboard de EVOLUCION DE CANALES
                 </h1>
-                <p class="text-gray-400 text-sm mt-1">Monitoreo en tiempo real de operaciones, Monto BS y Monto USD.</p>
+                <p class="text-gray-400 text-sm mt-1">Consulta automática de los acumulados disponibles en Google Sheets.</p>
             </div>
             
             <div class="flex flex-wrap items-center gap-3">
@@ -53,6 +53,10 @@
             </div>
         </header>
 
+    <section class="card-bg rounded-xl p-4 text-sm" role="status" aria-live="polite">
+      <p id="loadStatus">Preparando consulta...</p>
+      <p id="lastQuery" class="text-xs text-gray-400 mt-1">Todavía no se consultaron datos.</p>
+    </section>
     <!-- FILTROS Y CONTROLES DINÁMICOS -->
     <section class="card-bg rounded-2xl p-6 shadow-2xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <!-- Canal -->
@@ -207,7 +211,7 @@
     </div>
 
     <footer class="text-center text-xs text-gray-300 py-4">
-        Dashboard de Evolución de Canales &bull; Conexión Segura vía API Apps Script
+        Dashboard de Evolución de Canales &bull; Datos consultados desde Google Sheets
     </footer>
 
 </div>
@@ -217,12 +221,13 @@
     // Reemplaza esta URL con la URL de tu Aplicación Web de Google Apps Script (/exec)
     //const API_URL = "https://script.google.com/macros/s/AKfycbyW7xylDCzxUrHASWQ1YmrtqN3w9vxaDzwcXZod-OEmutA_W3FdfhzmRIB4oFTaWkycZw/exec";
     const API_URL = "https://script.google.com/macros/s/AKfycbwPoP77SyXf5yEVKzLikbhJNR5w_6NX4SUDESEpoWtuhFaZPtwxaQ5K6IEmfeMiRasmTw/exec";
-    
+                     
 
     let rawData = [];
     let filteredData = [];
     let activeMetric = "CantidadOperaciones"; // CantidadOperaciones, MontoBS, MontoUSD
     let refreshTimer = null;
+    let isLoading = false;
 
     // Instancias de gráficos
     let lineChartInstance = null;
@@ -276,44 +281,116 @@
         refreshTimer = setInterval(() => fetchData(false), 60000);
     }
 
-    function fetchData(showNotification = false) {
-        fetch(API_URL)
-            .then(response => response.json())
-            .then(data => {
-                rawData = data.map(row => {
-                    return {
-                        Fecha: (row.Fecha || "").trim(),
-                        Canal: (row.Canal || "Desconocido").trim(),
-                        Sucursal: (row.Sucursal || "Desconocida").trim(),
-                        CantidadOperaciones: parseFloat(row.CantidadOperaciones) || 0,
-                        MontoBS: parseFloat(row.MontoBS) || 0,
-                        MontoUSD: parseFloat(row.MontoUSD) || 0,
-                        MesKey: extractMonthKey(row.Fecha || "")
-                    };
-                }).filter(item => item.MesKey !== "");
-
-                initializeFilterOptions();
-                applyFilters();
-                if (showNotification) {
-                    alertCustom("Datos actualizados correctamente desde la API segura.");
-                }
-            })
-            .catch(err => {
-                console.error("Error al cargar los datos desde la API:", err);
-            });
+    function setStatus(message, failed = false) {
+        const el = document.getElementById("loadStatus");
+        el.textContent = message;
+        el.style.color = failed ? "#fca5a5" : "#d1fae5";
     }
 
-    function extractMonthKey(dateStr) {
-        if (!dateStr) return "";
-        let parts = dateStr.split(/[\/\-]/);
-        if (parts.length >= 3) {
-            if (parts[0].length === 4) {
-                return `${parts[1]}-${parts[0]}`;
-            } else {
-                return `${parts[1]}-${parts[2]}`;
-            }
+    function readDashboard() {
+        // Al alojarse en Apps Script no se hace fetch entre dominios.
+        if (typeof google !== "undefined" && google.script && google.script.run) {
+            return new Promise((resolve, reject) => {
+                google.script.run.withSuccessHandler(resolve)
+                    .withFailureHandler(() => reject(new Error("Apps Script no pudo leer la hoja. Revisa propiedades, permisos y la sección Ejecuciones.")))
+                    .obtenerDatosDashboard();
+            });
         }
-        return dateStr.substring(0, 7);
+        return (async () => {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 45000);
+            try {
+                const url = new URL(API_URL);
+                url.searchParams.set("t", String(Date.now()));
+                const response = await fetch(url.toString(), {
+                    method: "GET", redirect: "follow", signal: controller.signal
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}. Revisa URL /exec y permisos de implementación.`);
+                const text = await response.text();
+                try { return JSON.parse(text); }
+                catch { throw new Error("La URL no devolvió JSON. Puede ser una pantalla de inicio de sesión o una implementación incorrecta."); }
+            } finally { clearTimeout(timer); }
+        })();
+    }
+
+    async function fetchData(showNotification = false) {
+        if (isLoading) return;
+        isLoading = true;
+        const button = document.getElementById("btnManualRefresh");
+        button.disabled = true;
+        setStatus("Consultando Google Sheets...");
+        try {
+            const data = await readDashboard();
+            const normalized = normalizeRows(data);
+            if (typeof Chart === "undefined") throw new Error("No se cargó Chart.js. Verifica acceso al CDN de jsDelivr.");
+            rawData = normalized;
+            initializeFilterOptions();
+            applyFilters();
+            setStatus(rawData.length ? `${rawData.length} registros cargados desde la hoja.` : "La hoja no contiene registros después de los encabezados.");
+            document.getElementById("lastQuery").textContent = "Última consulta correcta: " +
+                new Date().toLocaleString("es-BO", {timeZone: "America/La_Paz"}) +
+                " (Bolivia). Esta hora no indica cuándo terminó la carga SQL.";
+            if (showNotification) alertCustom("Consulta de datos completada.");
+        } catch (err) {
+            console.error("Error de carga:", err);
+            let message = err.name === "AbortError" ? "La consulta superó los 45 segundos." : err.message;
+            if (err instanceof TypeError && /fetch|network/i.test(message))
+                message = "El navegador no pudo acceder a Apps Script. Revisa red, acceso Cualquiera y CORS; prueba alojar el dashboard en Apps Script según la guía.";
+            setStatus("No se pudo cargar: " + message + (rawData.length ? " Se conservan los últimos datos recibidos." : ""), true);
+        } finally {
+            isLoading = false;
+            button.disabled = false;
+        }
+    }
+
+    function numeric(value, field, rowIndex) {
+        if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim())) value = Number(value.trim());
+        if (typeof value !== "number" || !Number.isFinite(value))
+            throw new Error(`Fila ${rowIndex + 2}: ${field} no es numérico. Revisa celdas vacías o importes guardados como texto con separadores.`);
+        if (field === "CantidadOperaciones" && (!Number.isSafeInteger(value) || value < 0))
+            throw new Error(`Fila ${rowIndex + 2}: CantidadOperaciones debe ser un entero no negativo.`);
+        return value;
+    }
+
+    function extractMonthKey(dateValue) {
+        if (typeof dateValue !== "string") return "";
+        const text = dateValue.trim();
+        let year, month, day;
+        let m = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(text);
+        if (m) [,year,month,day] = m;
+        else {
+            m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
+            if (!m) return "";
+            [,day,month,year] = m;
+        }
+        const iso = `${year}-${month}-${day}`;
+        const d = new Date(iso + "T00:00:00Z");
+        if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0,10) !== iso) return "";
+        // AAAA-MM permite ordenar y filtrar correctamente entre años.
+        return `${year}-${month}`;
+    }
+
+    function monthLabel(key) { return key ? key.slice(5,7) + "-" + key.slice(0,4) : ""; }
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    }
+    function normalizeRows(data) {
+        if (!Array.isArray(data)) {
+            const message = data && (data.message || data.code);
+            throw new Error(message ? `Apps Script respondió: ${message}` : "La respuesta no es un arreglo. Comprueba que doGet devuelve los datos y no POST_REQUIRED.");
+        }
+        const fields = ["Fecha","Sucursal","Canal","CantidadOperaciones","MontoUSD","MontoBS"];
+        return data.map((original,i) => {
+            if (!original || typeof original !== "object" || Array.isArray(original)) throw new Error(`Fila ${i+2}: estructura inválida.`);
+            const row = Object.fromEntries(Object.entries(original).map(([k,v]) => [k.replace(/^\uFEFF/,"").trim(),v]));
+            if (fields.some(k => !Object.prototype.hasOwnProperty.call(row,k))) throw new Error(`Fila ${i+2}: faltan encabezados del contrato Fecha/Sucursal/Canal/CantidadOperaciones/MontoUSD/MontoBS.`);
+            const key = extractMonthKey(row.Fecha);
+            if (!key) throw new Error(`Fila ${i+2}: Fecha debe ser dd/MM/aaaa o una fecha ISO válida.`);
+            if (typeof row.Canal !== "string" || !row.Canal.trim() || typeof row.Sucursal !== "string" || !row.Sucursal.trim()) throw new Error(`Fila ${i+2}: Canal o Sucursal vacíos.`);
+            return {Fecha:row.Fecha, Canal:row.Canal.trim(), Sucursal:row.Sucursal.trim(),
+                CantidadOperaciones:numeric(row.CantidadOperaciones,"CantidadOperaciones",i),
+                MontoBS:numeric(row.MontoBS,"MontoBS",i), MontoUSD:numeric(row.MontoUSD,"MontoUSD",i), MesKey:key};
+        });
     }
 
     function initializeFilterOptions() {
@@ -333,7 +410,7 @@
         const currentCanal = selCanal.value;
         selCanal.innerHTML = '<option value="ALL">Todos los Canales</option>';
         canalesSet.forEach(c => {
-            selCanal.innerHTML += `<option value="${c}">${c}</option>`;
+            selCanal.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
         });
         selCanal.value = canalesSet.has(currentCanal) ? currentCanal : "ALL";
 
@@ -341,7 +418,7 @@
         const currentSuc = selSuc.value;
         selSuc.innerHTML = '<option value="ALL">Todas las Sucursales</option>';
         sucursalesSet.forEach(s => {
-            selSuc.innerHTML += `<option value="${s}">${s}</option>`;
+            selSuc.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
         });
         selSuc.value = sucursalesSet.has(currentSuc) ? currentSuc : "ALL";
 
@@ -349,18 +426,19 @@
         const selHasta = document.getElementById("filterMesHasta");
         const currentDesde = selDesde.value;
         const currentHasta = selHasta.value;
+        const previousLast = selHasta.options.length ? selHasta.options[selHasta.options.length - 1].value : "";
 
         selDesde.innerHTML = '';
         selHasta.innerHTML = '';
 
         sortedMeses.forEach(m => {
-            selDesde.innerHTML += `<option value="${m}">${m}</option>`;
-            selHasta.innerHTML += `<option value="${m}">${m}</option>`;
+            selDesde.innerHTML += `<option value="${m}">${monthLabel(m)}</option>`;
+            selHasta.innerHTML += `<option value="${m}">${monthLabel(m)}</option>`;
         });
 
         if (sortedMeses.length > 0) {
             selDesde.value = sortedMeses.includes(currentDesde) ? currentDesde : sortedMeses[0];
-            selHasta.value = sortedMeses.includes(currentHasta) ? currentHasta : sortedMeses[sortedMeses.length - 1];
+            selHasta.value = currentHasta === previousLast || !sortedMeses.includes(currentHasta) ? sortedMeses[sortedMeses.length - 1] : currentHasta;
         }
     }
 
@@ -453,7 +531,7 @@
         lineChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: sortedMeses,
+                labels: sortedMeses.map(monthLabel),
                 datasets: datasets
             },
             options: {
@@ -473,7 +551,7 @@
     function updateBarChart() {
         const ctx = document.getElementById("barChart").getContext("2d");
 
-        const canalMap = {};
+        const canalMap = Object.create(null);
         filteredData.forEach(item => {
             if (!canalMap[item.Canal]) {
                 canalMap[item.Canal] = { ops: 0, bs: 0 };
@@ -524,7 +602,7 @@
     function updateDoughnutChart() {
         const ctx = document.getElementById("doughnutChart").getContext("2d");
 
-        const canalMap = {};
+        const canalMap = Object.create(null);
         filteredData.forEach(item => {
             canalMap[item.Canal] = (canalMap[item.Canal] || 0) + item[activeMetric];
         });
@@ -576,9 +654,9 @@
 
         const searchQuery = (document.getElementById("searchTable").value || "").toLowerCase().trim();
 
-        const aggregatedMap = {};
+        const aggregatedMap = Object.create(null);
         filteredData.forEach(item => {
-            const key = `${item.MesKey}|${item.Canal}|${item.Sucursal}`;
+            const key = JSON.stringify([item.MesKey,item.Canal,item.Sucursal]);
             if (!aggregatedMap[key]) {
                 aggregatedMap[key] = {
                     Mes: item.MesKey,
@@ -609,9 +687,9 @@
             const tr = document.createElement("tr");
             tr.className = "hover:bg-[#1e3e62]/50 transition";
             tr.innerHTML = `
-                <td class="p-3 font-semibold">${row.Mes}</td>
-                <td class="p-3">${row.Canal}</td>
-                <td class="p-3">${row.Sucursal}</td>
+                <td class="p-3 font-semibold">${monthLabel(row.Mes)}</td>
+                <td class="p-3">${escapeHtml(row.Canal)}</td>
+                <td class="p-3">${escapeHtml(row.Sucursal)}</td>
                 <td class="p-3 text-right">${row.CantidadOperaciones.toLocaleString()}</td>
                 <td class="p-3 text-right">${row.MontoBS.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                 <td class="p-3 text-right">${row.MontoUSD.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
@@ -630,3 +708,4 @@
     </script>
 </body>
 </html>
+
