@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <base target="_top">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de EVOLUCION DE CANALES</title>
@@ -11,7 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js para los gráficos -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    <!-- PapaParse para procesar el CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         body {
             background: linear-gradient(135deg, #00a950 0%, #007bff 100%);
@@ -33,197 +33,177 @@
                 <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-3">
                     <i class="fa-solid fa-chart-line text-green-400"></i> Dashboard de EVOLUCION DE CANALES
                 </h1>
-                <p class="text-gray-400 text-sm mt-1">Consulta automática de los acumulados disponibles en Google Sheets.</p>
-            </div>
-            
-            <div class="flex flex-wrap items-center gap-3">
-                <div class="flex items-center gap-2 bg-[#1e3e62] px-3 py-2 rounded-xl">
-                    <label for="refreshInterval" class="text-xs text-gray-300">Auto-refresco:</label>
-                    <select id="refreshInterval" class="bg-transparent text-white text-sm focus:outline-none">
-                        <option value="0" class="bg-[#0b192c]">Desactivado</option>
-                        <option value="30" class="bg-[#0b192c]">Cada 30s</option>
-                        <option value="60" class="bg-[#0b192c]" selected>Cada 1 min</option>
-                        <option value="300" class="bg-[#0b192c]">Cada 5 min</option>
-                    </select>
-                </div>
-                
-                <button id="btnManualRefresh" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition shadow-lg">
-                    <i class="fa-solid fa-sync"></i> Actualizar Ahora
-                </button>
+                <p class="text-gray-400 text-sm mt-1">Monitoreo en tiempo real de operaciones, Monto BS y Monto USD.</p>
+                <p class="text-green-400 text-xs font-medium mt-1"><i class="fa-solid fa-clock-rotate-left mr-1"></i> Información actualizada al día de ayer.</p>
             </div>
         </header>
 
-    <!-- FILTROS Y CONTROLES DINÁMICOS -->
-    <section class="card-bg rounded-2xl p-6 shadow-2xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <!-- Canal -->
-        <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-network-wired mr-1"></i> Canal</label>
-            <select id="filterCanal" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
-                <option value="ALL">Todos los Canales</option>
-            </select>
-        </div>
-
-        <!-- Sucursal -->
-        <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-building mr-1"></i> Sucursal</label>
-            <select id="filterSucursal" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
-                <option value="ALL">Todas las Sucursales</option>
-            </select>
-        </div>
-
-        <!-- Mes Inicial -->
-        <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-calendar mr-1"></i> Mes Desde (MM-AAAA)</label>
-            <select id="filterMesDesde" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
-            </select>
-        </div>
-
-        <!-- Mes Final -->
-        <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-calendar-days mr-1"></i> Mes Hasta (MM-AAAA)</label>
-            <select id="filterMesHasta" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
-            </select>
-        </div>
-
-        <!-- Botones Métricas / Selector de Métrica Activa -->
-        <div class="flex flex-col justify-end">
-            <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-sliders mr-1"></i> Métrica Activa</label>
-            <div class="flex rounded-xl overflow-hidden border border-gray-600">
-                <button data-metric="CantidadOperaciones" class="metric-btn flex-1 bg-green-600 hover:bg-green-500 text-xs py-2 px-1 font-bold transition">Ops</button>
-                <button data-metric="MontoBS" class="metric-btn flex-1 bg-[#1e3e62] hover:bg-blue-600 text-xs py-2 px-1 font-bold transition">BS</button>
-                <button data-metric="MontoUSD" class="metric-btn flex-1 bg-[#1e3e62] hover:bg-blue-600 text-xs py-2 px-1 font-bold transition">USD</button>
-            </div>
-        </div>
-    </section>
-
-    <!-- TARJETAS DE RESUMEN (KPIs) -->
-    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-green-500">
+        <!-- FILTROS Y CONTROLES DINÁMICOS -->
+        <section class="card-bg rounded-2xl p-6 shadow-2xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Canal -->
             <div>
-                <p class="text-xs text-gray-400 font-semibold uppercase">Total Operaciones</p>
-                <h3 id="kpiOps" class="text-2xl font-black mt-1">0</h3>
+                <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-network-wired mr-1"></i> Canal</label>
+                <select id="filterCanal" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+                    <option value="ALL">Todos los Canales</option>
+                </select>
             </div>
-            <div class="bg-green-500/20 p-3 rounded-xl text-green-400"><i class="fa-solid fa-hashtag text-xl"></i></div>
-        </div>
 
-        <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-blue-500">
+            <!-- Sucursal -->
             <div>
-                <p class="text-xs text-gray-400 font-semibold uppercase">Total Monto (BS)</p>
-                <h3 id="kpiBS" class="text-2xl font-black mt-1">0.00</h3>
+                <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-building mr-1"></i> Sucursal</label>
+                <select id="filterSucursal" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+                    <option value="ALL">Todas las Sucursales</option>
+                </select>
             </div>
-            <div class="bg-blue-500/20 p-3 rounded-xl text-blue-400"><i class="fa-solid fa-wallet text-xl"></i></div>
-        </div>
 
-        <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-emerald-400">
+            <!-- Mes Inicial -->
             <div>
-                <p class="text-xs text-gray-400 font-semibold uppercase">Total Monto (USD)</p>
-                <h3 id="kpiUSD" class="text-2xl font-black mt-1">0.00</h3>
+                <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-calendar mr-1"></i> Mes Desde (MM-AAAA)</label>
+                <select id="filterMesDesde" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+                </select>
             </div>
-            <div class="bg-emerald-500/20 p-3 rounded-xl text-emerald-400"><i class="fa-solid fa-dollar-sign text-xl"></i></div>
-        </div>
-    </section>
 
-    <!-- SECCIÓN DE GRÁFICOS -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        <!-- Gráfico de Líneas Múltiple: Evolución Temporal por Canal -->
-        <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-chart-line text-green-400"></i> Tendencia Mensual por Canal
-                </h2>
-                <span id="lblMetricLine" class="text-xs bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full font-semibold">Operaciones</span>
+            <!-- Mes Final -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-calendar-days mr-1"></i> Mes Hasta (MM-AAAA)</label>
+                <select id="filterMesHasta" class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-green-400">
+                </select>
             </div>
-            <div class="relative h-72 w-full">
-                <canvas id="lineChart"></canvas>
-            </div>
-        </div>
 
-        <!-- Gráfico de Barras Agrupadas: Comparativa por Canal (Ops vs Monto) -->
-        <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-chart-column text-blue-400"></i> Comparativa Cantidad vs Monto (BS)
-                </h2>
-                <span class="text-xs bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-semibold">Agrupado</span>
-            </div>
-            <div class="relative h-72 w-full">
-                <canvas id="barChart"></canvas>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- GRÁFICO DE PARTICIPACIÓN Y RESUMEN TABULAR -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Gráfico de Participación (Doughnut) -->
-        <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between lg:col-span-1">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-lg font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-chart-pie text-emerald-400"></i> Participación por Canal
-                </h2>
-            </div>
-            <div class="relative h-64 w-full flex items-center justify-center">
-                <canvas id="doughnutChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Tabla de Resumen Agregado Mes a Mes por Canal y Sucursal -->
-        <div class="card-bg p-6 rounded-2xl shadow-2xl lg:col-span-2 flex flex-col">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                <h2 class="text-lg font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-table text-green-400"></i> Resumen Agregado Mes a Mes por Canal y Sucursal
-                </h2>
-                <div class="flex items-center gap-2 w-full sm:w-auto">
-                    <div class="relative w-full sm:w-64">
-                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
-                            <i class="fa-solid fa-search text-xs"></i>
-                        </span>
-                        <input type="text" id="searchTable" placeholder="Filtrar por canal o sucursal..." class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-400">
-                    </div>
-                    <span id="rowCount" class="text-xs text-gray-400 whitespace-nowrap">0 reg.</span>
+            <!-- Botones Métricas / Selector de Métrica Activa -->
+            <div class="flex flex-col justify-end">
+                <label class="block text-xs font-semibold text-gray-300 mb-1"><i class="fa-solid fa-sliders mr-1"></i> Métrica Activa</label>
+                <div class="flex rounded-xl overflow-hidden border border-gray-600">
+                    <button data-metric="CantidadOperaciones" class="metric-btn flex-1 bg-green-600 hover:bg-green-500 text-xs py-2 px-1 font-bold transition">Ops</button>
+                    <button data-metric="MontoBS" class="metric-btn flex-1 bg-[#1e3e62] hover:bg-blue-600 text-xs py-2 px-1 font-bold transition">BS</button>
+                    <button data-metric="MontoUSD" class="metric-btn flex-1 bg-[#1e3e62] hover:bg-blue-600 text-xs py-2 px-1 font-bold transition">USD</button>
                 </div>
             </div>
-            <div class="overflow-x-auto max-h-72 overflow-y-auto rounded-xl border border-gray-700">
-                <table class="w-full text-left border-collapse text-sm">
-                    <thead class="bg-[#1e3e62] sticky top-0 text-xs uppercase text-gray-300">
-                        <tr>
-                            <th class="p-3">Mes</th>
-                            <th class="p-3">Canal</th>
-                            <th class="p-3">Sucursal</th>
-                            <th class="p-3 text-right">Ops</th>
-                            <th class="p-3 text-right">Monto BS</th>
-                            <th class="p-3 text-right">Monto USD</th>
-                        </tr>
-                    </thead>
-                    <tbody id="summaryTableBody" class="divide-y divide-gray-800 text-gray-200 text-xs">
-                        <!-- Inyectado dinámicamente -->
-                    </tbody>
-                </table>
+        </section>
+
+        <!-- TARJETAS DE RESUMEN (KPIs) -->
+        <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-green-500">
+                <div>
+                    <p class="text-xs text-gray-400 font-semibold uppercase">Total Operaciones</p>
+                    <h3 id="kpiOps" class="text-2xl font-black mt-1">0</h3>
+                </div>
+                <div class="bg-green-500/20 p-3 rounded-xl text-green-400"><i class="fa-solid fa-hashtag text-xl"></i></div>
             </div>
+
+            <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-blue-500">
+                <div>
+                    <p class="text-xs text-gray-400 font-semibold uppercase">Total Monto (BS)</p>
+                    <h3 id="kpiBS" class="text-2xl font-black mt-1">0.00</h3>
+                </div>
+                <div class="bg-blue-500/20 p-3 rounded-xl text-blue-400"><i class="fa-solid fa-wallet text-xl"></i></div>
+            </div>
+
+            <div class="card-bg p-5 rounded-2xl shadow-xl flex items-center justify-between border-l-4 border-emerald-400">
+                <div>
+                    <p class="text-xs text-gray-400 font-semibold uppercase">Total Monto (USD)</p>
+                    <h3 id="kpiUSD" class="text-2xl font-black mt-1">0.00</h3>
+                </div>
+                <div class="bg-emerald-500/20 p-3 rounded-xl text-emerald-400"><i class="fa-solid fa-dollar-sign text-xl"></i></div>
+            </div>
+        </section>
+
+        <!-- SECCIÓN DE GRÁFICOS -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Gráfico de Líneas Múltiple: Evolución Temporal por Canal -->
+            <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-green-400"></i> Tendencia Mensual por Canal
+                    </h2>
+                    <span id="lblMetricLine" class="text-xs bg-green-500/20 text-green-300 px-2.5 py-1 rounded-full font-semibold">Operaciones</span>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico de Barras Agrupadas: Comparativa por Canal (Ops vs Monto) -->
+            <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-chart-column text-blue-400"></i> Comparativa Cantidad vs Monto (BS)
+                    </h2>
+                    <span class="text-xs bg-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-semibold">Agrupado</span>
+                </div>
+                <div class="relative h-72 w-full">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
         </div>
 
+        <!-- GRÁFICO DE PARTICIPACIÓN Y RESUMEN TABULAR -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Gráfico de Participación (Doughnut) -->
+            <div class="card-bg p-6 rounded-2xl shadow-2xl flex flex-col justify-between lg:col-span-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-emerald-400"></i> Participación por Canal
+                    </h2>
+                </div>
+                <div class="relative h-64 w-full flex items-center justify-center">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabla de Resumen Agregado Mes a Mes por Canal y Sucursal -->
+            <div class="card-bg p-6 rounded-2xl shadow-2xl lg:col-span-2 flex flex-col">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+                    <h2 class="text-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-table text-green-400"></i> Resumen Agregado Mes a Mes por Canal y Sucursal
+                    </h2>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                                <i class="fa-solid fa-search text-xs"></i>
+                            </span>
+                            <input type="text" id="searchTable" placeholder="Filtrar por canal o sucursal..." class="w-full bg-[#1e3e62] border border-gray-600 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-400">
+                        </div>
+                        <span id="rowCount" class="text-xs text-gray-400 whitespace-nowrap">0 reg.</span>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-72 overflow-y-auto rounded-xl border border-gray-700">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-[#1e3e62] sticky top-0 text-xs uppercase text-gray-300">
+                            <tr>
+                                <th class="p-3">Mes</th>
+                                <th class="p-3">Canal</th>
+                                <th class="p-3">Sucursal</th>
+                                <th class="p-3 text-right">Ops</th>
+                                <th class="p-3 text-right">Monto BS</th>
+                                <th class="p-3 text-right">Monto USD</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody" class="divide-y divide-gray-800 text-gray-200 text-xs">
+                            <!-- Inyectado dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <footer class="text-center text-xs text-gray-300 py-4">
+            Dashboard de Evolución de Canales &bull; Conexión Segura vía API Apps Script
+        </footer>
+
     </div>
-
-    <footer class="text-center text-xs text-gray-300 py-4">
-        Dashboard de Evolución de Canales &bull; Datos consultados desde Google Sheets
-    </footer>
-
-</div>
 
 <!-- SCRIPT DE LÓGICA Y PROCESAMIENTO -->
 <script>
-    // Reemplaza esta URL con la URL de tu Aplicación Web de Google Apps Script (/exec)
-    //const API_URL = "https://script.google.com/macros/s/AKfycbyW7xylDCzxUrHASWQ1YmrtqN3w9vxaDzwcXZod-OEmutA_W3FdfhzmRIB4oFTaWkycZw/exec";
-    const API_URL = "https://script.google.com/macros/s/AKfycbwPoP77SyXf5yEVKzLikbhJNR5w_6NX4SUDESEpoWtuhFaZPtwxaQ5K6IEmfeMiRasmTw/exec";
-                     
+    const API_URL = "https://script.google.com/macros/s/AKfycbyW7xylDCzxUrHASWQ1YmrtqN3w9vxaDzwcXZod-OEmutA_W3FdfhzmRIB4oFTaWkycZw/exec";
 
     let rawData = [];
     let filteredData = [];
     let activeMetric = "CantidadOperaciones"; // CantidadOperaciones, MontoBS, MontoUSD
-    let refreshTimer = null;
-    let isLoading = false;
 
     // Instancias de gráficos
     let lineChartInstance = null;
@@ -242,17 +222,6 @@
         document.getElementById("filterMesDesde").addEventListener("change", applyFilters);
         document.getElementById("filterMesHasta").addEventListener("change", applyFilters);
         document.getElementById("searchTable").addEventListener("input", updateSummaryTable);
-        document.getElementById("btnManualRefresh").addEventListener("click", () => {
-            fetchData(true);
-        });
-
-        document.getElementById("refreshInterval").addEventListener("change", (e) => {
-            const seconds = parseInt(e.target.value);
-            if (refreshTimer) clearInterval(refreshTimer);
-            if (seconds > 0) {
-                refreshTimer = setInterval(() => fetchData(false), seconds * 1000);
-            }
-        });
 
         // Botones de Métrica
         document.querySelectorAll(".metric-btn").forEach(btn => {
@@ -272,119 +241,46 @@
                 updateCharts();
             });
         });
-
-        // Inicializar timer por defecto (1 min)
-        refreshTimer = setInterval(() => fetchData(false), 60000);
     }
 
-    function setStatus(message, failed = false) {
-       
-    }
+    function fetchData(showNotification = false) {
+        fetch(API_URL)
+            .then(response => response.json())
+            .then(data => {
+                rawData = data.map(row => {
+                    return {
+                        Fecha: (row.Fecha || "").trim(),
+                        Canal: (row.Canal || "Desconocido").trim(),
+                        Sucursal: (row.Sucursal || "Desconocida").trim(),
+                        CantidadOperaciones: parseFloat(row.CantidadOperaciones) || 0,
+                        MontoBS: parseFloat(row.MontoBS) || 0,
+                        MontoUSD: parseFloat(row.MontoUSD) || 0,
+                        MesKey: extractMonthKey(row.Fecha || "")
+                    };
+                }).filter(item => item.MesKey !== "");
 
-    function readDashboard() {
-        // Al alojarse en Apps Script no se hace fetch entre dominios.
-        if (typeof google !== "undefined" && google.script && google.script.run) {
-            return new Promise((resolve, reject) => {
-                google.script.run.withSuccessHandler(resolve)
-                    .withFailureHandler(() => reject(new Error("Apps Script no pudo leer la hoja. Revisa propiedades, permisos y la sección Ejecuciones.")))
-                    .obtenerDatosDashboard();
+                initializeFilterOptions();
+                applyFilters();
+                if (showNotification) {
+                    alertCustom("Datos actualizados correctamente desde la API segura.");
+                }
+            })
+            .catch(err => {
+                console.error("Error al cargar los datos desde la API:", err);
             });
-        }
-        return (async () => {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 45000);
-            try {
-                const url = new URL(API_URL);
-                url.searchParams.set("t", String(Date.now()));
-                const response = await fetch(url.toString(), {
-                    method: "GET", redirect: "follow", signal: controller.signal
-                });
-                if (!response.ok) throw new Error(`HTTP ${response.status}. Revisa URL /exec y permisos de implementación.`);
-                const text = await response.text();
-                try { return JSON.parse(text); }
-                catch { throw new Error("La URL no devolvió JSON. Puede ser una pantalla de inicio de sesión o una implementación incorrecta."); }
-            } finally { clearTimeout(timer); }
-        })();
     }
 
-    async function fetchData(showNotification = false) {
-        if (isLoading) return;
-        isLoading = true;
-        const button = document.getElementById("btnManualRefresh");
-        button.disabled = true;
-        setStatus("Consultando Google Sheets...");
-        try {
-            const data = await readDashboard();
-            const normalized = normalizeRows(data);
-            if (typeof Chart === "undefined") throw new Error("No se cargó Chart.js. Verifica acceso al CDN de jsDelivr.");
-            rawData = normalized;
-            initializeFilterOptions();
-            applyFilters();
-            setStatus(rawData.length ? `${rawData.length} registros cargados desde la hoja.` : "La hoja no contiene registros después de los encabezados.");
-            document.getElementById("lastQuery").textContent = "Última consulta correcta: " +
-                new Date().toLocaleString("es-BO", {timeZone: "America/La_Paz"}) +
-                " (Bolivia). Esta hora no indica cuándo terminó la carga SQL.";
-            if (showNotification) alertCustom("Consulta de datos completada.");
-        } catch (err) {
-            console.error("Error de carga:", err);
-            let message = err.name === "AbortError" ? "La consulta superó los 45 segundos." : err.message;
-            if (err instanceof TypeError && /fetch|network/i.test(message))
-                message = "El navegador no pudo acceder a Apps Script. Revisa red, acceso Cualquiera y CORS; prueba alojar el dashboard en Apps Script según la guía.";
-            setStatus("No se pudo cargar: " + message + (rawData.length ? " Se conservan los últimos datos recibidos." : ""), true);
-        } finally {
-            isLoading = false;
-            button.disabled = false;
+    function extractMonthKey(dateStr) {
+        if (!dateStr) return "";
+        let parts = dateStr.split(/[\/\-]/);
+        if (parts.length >= 3) {
+            if (parts[0].length === 4) {
+                return `${parts[1]}-${parts[0]}`;
+            } else {
+                return `${parts[1]}-${parts[2]}`;
+            }
         }
-    }
-
-    function numeric(value, field, rowIndex) {
-        if (typeof value === "string" && /^-?\d+(\.\d+)?$/.test(value.trim())) value = Number(value.trim());
-        if (typeof value !== "number" || !Number.isFinite(value))
-            throw new Error(`Fila ${rowIndex + 2}: ${field} no es numérico. Revisa celdas vacías o importes guardados como texto con separadores.`);
-        if (field === "CantidadOperaciones" && (!Number.isSafeInteger(value) || value < 0))
-            throw new Error(`Fila ${rowIndex + 2}: CantidadOperaciones debe ser un entero no negativo.`);
-        return value;
-    }
-
-    function extractMonthKey(dateValue) {
-        if (typeof dateValue !== "string") return "";
-        const text = dateValue.trim();
-        let year, month, day;
-        let m = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(text);
-        if (m) [,year,month,day] = m;
-        else {
-            m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
-            if (!m) return "";
-            [,day,month,year] = m;
-        }
-        const iso = `${year}-${month}-${day}`;
-        const d = new Date(iso + "T00:00:00Z");
-        if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0,10) !== iso) return "";
-        // AAAA-MM permite ordenar y filtrar correctamente entre años.
-        return `${year}-${month}`;
-    }
-
-    function monthLabel(key) { return key ? key.slice(5,7) + "-" + key.slice(0,4) : ""; }
-    function escapeHtml(value) {
-        return String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-    }
-    function normalizeRows(data) {
-        if (!Array.isArray(data)) {
-            const message = data && (data.message || data.code);
-            throw new Error(message ? `Apps Script respondió: ${message}` : "La respuesta no es un arreglo. Comprueba que doGet devuelve los datos y no POST_REQUIRED.");
-        }
-        const fields = ["Fecha","Sucursal","Canal","CantidadOperaciones","MontoUSD","MontoBS"];
-        return data.map((original,i) => {
-            if (!original || typeof original !== "object" || Array.isArray(original)) throw new Error(`Fila ${i+2}: estructura inválida.`);
-            const row = Object.fromEntries(Object.entries(original).map(([k,v]) => [k.replace(/^\uFEFF/,"").trim(),v]));
-            if (fields.some(k => !Object.prototype.hasOwnProperty.call(row,k))) throw new Error(`Fila ${i+2}: faltan encabezados del contrato Fecha/Sucursal/Canal/CantidadOperaciones/MontoUSD/MontoBS.`);
-            const key = extractMonthKey(row.Fecha);
-            if (!key) throw new Error(`Fila ${i+2}: Fecha debe ser dd/MM/aaaa o una fecha ISO válida.`);
-            if (typeof row.Canal !== "string" || !row.Canal.trim() || typeof row.Sucursal !== "string" || !row.Sucursal.trim()) throw new Error(`Fila ${i+2}: Canal o Sucursal vacíos.`);
-            return {Fecha:row.Fecha, Canal:row.Canal.trim(), Sucursal:row.Sucursal.trim(),
-                CantidadOperaciones:numeric(row.CantidadOperaciones,"CantidadOperaciones",i),
-                MontoBS:numeric(row.MontoBS,"MontoBS",i), MontoUSD:numeric(row.MontoUSD,"MontoUSD",i), MesKey:key};
-        });
+        return dateStr.substring(0, 7);
     }
 
     function initializeFilterOptions() {
@@ -404,7 +300,7 @@
         const currentCanal = selCanal.value;
         selCanal.innerHTML = '<option value="ALL">Todos los Canales</option>';
         canalesSet.forEach(c => {
-            selCanal.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`;
+            selCanal.innerHTML += `<option value="${c}">${c}</option>`;
         });
         selCanal.value = canalesSet.has(currentCanal) ? currentCanal : "ALL";
 
@@ -412,7 +308,7 @@
         const currentSuc = selSuc.value;
         selSuc.innerHTML = '<option value="ALL">Todas las Sucursales</option>';
         sucursalesSet.forEach(s => {
-            selSuc.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`;
+            selSuc.innerHTML += `<option value="${s}">${s}</option>`;
         });
         selSuc.value = sucursalesSet.has(currentSuc) ? currentSuc : "ALL";
 
@@ -420,19 +316,18 @@
         const selHasta = document.getElementById("filterMesHasta");
         const currentDesde = selDesde.value;
         const currentHasta = selHasta.value;
-        const previousLast = selHasta.options.length ? selHasta.options[selHasta.options.length - 1].value : "";
 
         selDesde.innerHTML = '';
         selHasta.innerHTML = '';
 
         sortedMeses.forEach(m => {
-            selDesde.innerHTML += `<option value="${m}">${monthLabel(m)}</option>`;
-            selHasta.innerHTML += `<option value="${m}">${monthLabel(m)}</option>`;
+            selDesde.innerHTML += `<option value="${m}">${m}</option>`;
+            selHasta.innerHTML += `<option value="${m}">${m}</option>`;
         });
 
         if (sortedMeses.length > 0) {
             selDesde.value = sortedMeses.includes(currentDesde) ? currentDesde : sortedMeses[0];
-            selHasta.value = currentHasta === previousLast || !sortedMeses.includes(currentHasta) ? sortedMeses[sortedMeses.length - 1] : currentHasta;
+            selHasta.value = sortedMeses.includes(currentHasta) ? currentHasta : sortedMeses[sortedMeses.length - 1];
         }
     }
 
@@ -525,7 +420,7 @@
         lineChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: sortedMeses.map(monthLabel),
+                labels: sortedMeses,
                 datasets: datasets
             },
             options: {
@@ -545,7 +440,7 @@
     function updateBarChart() {
         const ctx = document.getElementById("barChart").getContext("2d");
 
-        const canalMap = Object.create(null);
+        const canalMap = {};
         filteredData.forEach(item => {
             if (!canalMap[item.Canal]) {
                 canalMap[item.Canal] = { ops: 0, bs: 0 };
@@ -596,7 +491,7 @@
     function updateDoughnutChart() {
         const ctx = document.getElementById("doughnutChart").getContext("2d");
 
-        const canalMap = Object.create(null);
+        const canalMap = {};
         filteredData.forEach(item => {
             canalMap[item.Canal] = (canalMap[item.Canal] || 0) + item[activeMetric];
         });
@@ -648,9 +543,9 @@
 
         const searchQuery = (document.getElementById("searchTable").value || "").toLowerCase().trim();
 
-        const aggregatedMap = Object.create(null);
+        const aggregatedMap = {};
         filteredData.forEach(item => {
-            const key = JSON.stringify([item.MesKey,item.Canal,item.Sucursal]);
+            const key = `${item.MesKey}|${item.Canal}|${item.Sucursal}`;
             if (!aggregatedMap[key]) {
                 aggregatedMap[key] = {
                     Mes: item.MesKey,
@@ -681,9 +576,9 @@
             const tr = document.createElement("tr");
             tr.className = "hover:bg-[#1e3e62]/50 transition";
             tr.innerHTML = `
-                <td class="p-3 font-semibold">${monthLabel(row.Mes)}</td>
-                <td class="p-3">${escapeHtml(row.Canal)}</td>
-                <td class="p-3">${escapeHtml(row.Sucursal)}</td>
+                <td class="p-3 font-semibold">${row.Mes}</td>
+                <td class="p-3">${row.Canal}</td>
+                <td class="p-3">${row.Sucursal}</td>
                 <td class="p-3 text-right">${row.CantidadOperaciones.toLocaleString()}</td>
                 <td class="p-3 text-right">${row.MontoBS.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                 <td class="p-3 text-right">${row.MontoUSD.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
@@ -692,14 +587,13 @@
         });
     }
 
-        function alertCustom(message) {
-            const notif = document.createElement("div");
-            notif.className = "fixed bottom-5 right-5 bg-green-600 text-white px-4 py-3 rounded-xl shadow-2xl z-50 text-sm flex items-center gap-2 animate-bounce";
-            notif.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${message}`;
-            document.body.appendChild(notif);
-            setTimeout(() => notif.remove(), 3500);
-        }
-    </script>
+    function alertCustom(message) {
+        const notif = document.createElement("div");
+        notif.className = "fixed bottom-5 right-5 bg-green-600 text-white px-4 py-3 rounded-xl shadow-2xl z-50 text-sm flex items-center gap-2 animate-bounce";
+        notif.innerHTML = `<i class="fa-solid fa-check-circle"></i> ${message}`;
+        document.body.appendChild(notif);
+        setTimeout(() => notif.remove(), 3500);
+    }
+</script>
 </body>
 </html>
-
